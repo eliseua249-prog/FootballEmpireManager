@@ -1,0 +1,26 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Godot Android
+        uses: barichello/godot-ci@v6.1.1
+        with:
+          version: "4.5"
+          export: "Android"
+          export_path: "build/FootballEmpireManager.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FootballEmpireManager-APK
+          path: build/FootballEmpireManager.apk

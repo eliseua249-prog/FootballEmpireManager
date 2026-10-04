@@ -46,7 +46,7 @@ jobs:
           set -e
           SDKMANAGER=/usr/lib/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager
           yes | "$SDKMANAGER" --sdk_root=/usr/lib/android-sdk --licenses >/dev/null 2>&1 || true
-          "$SDKMANAGER" --sdk_root=/usr/lib/android-sdk "platform-tools" "platforms;android-35" "build-tools;35.0.1" "cmdline-tools;latest"
+          "$SDKMANAGER" --sdk_root=/usr/lib/android-sdk "platform-tools" "platforms;android-35" "build-tools;35.0.1" "cmdline-tools;latest" "cmake;3.10.2.4988404" "ndk;28.1.13356709"
 
           JAVA_BIN="$(command -v java)"
           JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$JAVA_BIN")")")"
@@ -65,6 +65,8 @@ jobs:
           godot --headless --version
           test -x "$ANDROID_HOME/build-tools/35.0.1/aapt"
           test -d "$ANDROID_HOME/platforms/android-35"
+          test -d "$ANDROID_HOME/ndk/28.1.13356709"
+          test -d "$ANDROID_HOME/cmake/3.10.2.4988404"
           test -s "$HOME/.android/debug.keystore"
           TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
           test -s "$TEMPLATE_DIR/android_debug.apk"

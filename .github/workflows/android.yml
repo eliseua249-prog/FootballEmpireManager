@@ -1,17 +1,18 @@
 name: Build Android APK
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
-  GODOT_VERSION: 4.5
+  GODOT_VERSION: "4.5"
   ANDROID_HOME: /usr/lib/android-sdk
   ANDROID_SDK_ROOT: /usr/lib/android-sdk
 
 jobs:
   build:
+    name: Build APK
     runs-on: ubuntu-24.04
     container:
       image: barichello/godot-ci:4.5
@@ -20,48 +21,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install download tools
+      - name: Install dependencies
+        shell: bash
         run: |
-          set -e
+          set -eux
           apt-get update
           apt-get install -y curl unzip
 
       - name: Install Godot export templates
+        shell: bash
         run: |
-          set -e
-          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
-          mkdir -p "$TEMPLATE_DIR"
-          if [ ! -f "$TEMPLATE_DIR/android_debug.apk" ]; then
-            mkdir -p /tmp/godot-templates
-            curl -L --fail --retry 3 "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz" -o /tmp/godot-templates/export_templates.tpz
-            unzip -o /tmp/godot-templates/export_templates.tpz -d /tmp/godot-templates/unpacked
-            cp -a /tmp/godot-templates/unpacked/templates/. "$TEMPLATE_DIR/"
-          fi
-          ls -lh "$TEMPLATE_DIR"
-          test -s "$TEMPLATE_DIR/android_debug.apk"
-          test -s "$TEMPLATE_DIR/android_release.apk"
+          set -eux
+          dir="$HOME/.local/share/godot/export_templates/4.5.stable"
+          mkdir -p "$dir"
+          curl -L --fail --retry 3 "https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_export_templates.tpz" -o /tmp/templates.tpz
+          rm -rf /tmp/templates
+          mkdir -p /tmp/templates
+          unzip -o /tmp/templates.tpz -d /tmp/templates
+          cp -a /tmp/templates/templates/. "$dir/"
+          test -s "$dir/android_debug.apk"
+          test -s "$dir/android_release.apk"
 
-      - name: Configure Android SDK and Java
+      - name: Configure Android toolchain
+        shell: bash
         run: |
-          set -e
-          SDKMANAGER=/usr/lib/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager
-          yes | "$SDKMANAGER" --sdk_root=/usr/lib/android-sdk --licenses >/dev/null 2>&1 || true
-          "$SDKMANAGER" --sdk_root=/usr/lib/android-sdk "platform-tools" "platforms;android-35" "build-tools;35.0.1" "cmdline-tools;latest" "cmake;3.10.2.4988404" "ndk;28.1.13356709"
-
-          JAVA_BIN="$(command -v java)"
-          JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$JAVA_BIN")")")"
-          echo "JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
-
+          set -eux
+          sdkmanager=/usr/lib/android-sdk/cmdline-tools/cmdline-tools/bin/sdkmanager
+          yes | "$sdkmanager" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+          "$sdkmanager" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-35" "build-tools;35.0.1" "cmdline-tools;latest" "cmake;3.10.2.4988404" "ndk;28.1.13356709"
+          java_bin="$(command -v java)"
+          java_home="$(dirname "$(dirname "$(readlink -f "$java_bin")")")"
+          echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
           mkdir -p "$HOME/.android"
           keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
 
-          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
-          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
-
-      - name: Configure Godot Android editor settings
+      - name: Configure Godot Android settings
+        shell: bash
         run: |
-          set -e
+          set -eux
           mkdir -p "$HOME/.config/godot"
           cat > "$HOME/.config/godot/editor_settings-4.5.tres" <<EOF
 [gd_resource type="EditorSettings" format=3]
@@ -75,22 +72,21 @@ export/android/debug_keystore_pass = "android"
 EOF
           cat "$HOME/.config/godot/editor_settings-4.5.tres"
 
-      - name: Verify toolchain
+      - name: Verify Godot and Android
+        shell: bash
         run: |
-          set -e
+          set -eux
           godot --headless --version
           test -x "$ANDROID_HOME/build-tools/35.0.1/aapt"
           test -d "$ANDROID_HOME/platforms/android-35"
           test -d "$ANDROID_HOME/ndk/28.1.13356709"
           test -d "$ANDROID_HOME/cmake/3.10.2.4988404"
           test -s "$HOME/.android/debug.keystore"
-          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
-          test -s "$TEMPLATE_DIR/android_debug.apk"
-          test -s "$TEMPLATE_DIR/android_release.apk"
 
       - name: Build Android APK
+        shell: bash
         run: |
-          set -e
+          set -eux
           rm -rf build
           mkdir -p build
           godot --headless --verbose --export-debug "Android" build/FootballEmpireManager.apk

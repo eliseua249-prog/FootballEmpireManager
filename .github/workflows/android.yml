@@ -20,6 +20,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install download tools
+        run: |
+          set -e
+          apt-get update
+          apt-get install -y curl unzip
+
       - name: Install Godot export templates
         run: |
           set -e
@@ -27,7 +33,7 @@ jobs:
           mkdir -p "$TEMPLATE_DIR"
           if [ ! -f "$TEMPLATE_DIR/android_debug.apk" ]; then
             mkdir -p /tmp/godot-templates
-            curl -L --fail --retry 3               "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"               -o /tmp/godot-templates/export_templates.tpz
+            curl -L --fail --retry 3 "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz" -o /tmp/godot-templates/export_templates.tpz
             unzip -o /tmp/godot-templates/export_templates.tpz -d /tmp/godot-templates/unpacked
             cp -a /tmp/godot-templates/unpacked/templates/. "$TEMPLATE_DIR/"
           fi

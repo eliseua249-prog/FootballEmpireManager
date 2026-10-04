@@ -5,19 +5,31 @@ on:
   push:
     branches: [main]
 
+env:
+  GODOT_VERSION: 4.5
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
+    container:
+      image: barichello/godot-ci:4.5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Godot Android
-        uses: barichello/godot-ci@v6.1.1
-        with:
-          version: "4.5"
-          export: "Android"
-          export_path: "build/FootballEmpireManager.apk"
+      - name: Setup
+        run: |
+          mkdir -p ~/.local/share/godot/export_templates/
+          mkdir -p ~/.config/
+          mv /root/.config/godot ~/.config/godot
+          mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+      - name: Build Android APK
+        run: |
+          mkdir -p build
+          godot --headless --verbose --export-debug "Android" build/FootballEmpireManager.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

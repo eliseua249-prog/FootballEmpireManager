@@ -1,41 +1,49 @@
 name: Build Android APK
 
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+on: push
 
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-24.04
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android packages
-        shell: bash
+      - name: Install tools
         run: |
           set -eux
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.1" "cmake;3.10.2.4988404" "ndk;28.1.13356709"
+          sudo apt-get update
+          sudo apt-get install -y curl unzip openjdk-17-jdk
 
-      - name: Install Godot 4.5
-        shell: bash
+      - name: Install Android SDK
+        run: |
+          set -eux
+          SDK="$HOME/android-sdk"
+          mkdir -p "$SDK/cmdline-tools"
+          curl -L --fail --retry 3 "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip" -o /tmp/cmdline.zip
+          unzip -q /tmp/cmdline.zip -d "$SDK/cmdline-tools"
+          mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "$SDK/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$SDK/platform-tools" >> "$GITHUB_PATH"
+          echo "$SDK/build-tools/35.0.1" >> "$GITHUB_PATH"
+
+      - name: Install Android packages
+        run: |
+          set -eux
+          yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+          sdkmanager --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-35" "build-tools;35.0.1" "cmake;3.10.2.4988404" "ndk;28.1.13356709"
+
+      - name: Install Godot
         run: |
           set -eux
           curl -L --fail --retry 3 "https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_linux.x86_64.zip" -o /tmp/godot.zip
-          unzip -o /tmp/godot.zip -d /tmp/godot
-          install -m 0755 /tmp/godot/Godot_v4.5-stable_linux.x86_64 /usr/local/bin/godot
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          sudo install -m 0755 /tmp/godot/Godot_v4.5-stable_linux.x86_64 /usr/local/bin/godot
           godot --headless --version
 
-      - name: Install Godot export templates
-        shell: bash
+      - name: Install export templates
         run: |
           set -eux
           dir="$HOME/.local/share/godot/export_templates/4.5.stable"
@@ -43,38 +51,31 @@ jobs:
           curl -L --fail --retry 3 "https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_export_templates.tpz" -o /tmp/templates.tpz
           rm -rf /tmp/templates
           mkdir -p /tmp/templates
-          unzip -o /tmp/templates.tpz -d /tmp/templates
+          unzip -q /tmp/templates.tpz -d /tmp/templates
           cp -a /tmp/templates/templates/. "$dir/"
           test -s "$dir/android_debug.apk"
-          test -s "$dir/android_release.apk"
 
-      - name: Configure Java and Godot Android settings
-        shell: bash
+      - name: Configure Godot
         run: |
           set -eux
-          java_bin="$(command -v java)"
-          java_home="$(dirname "$(dirname "$(readlink -f "$java_bin")")")"
-          echo "JAVA_HOME=$java_home" >> "$GITHUB_ENV"
-          mkdir -p "$HOME/.android"
+          JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")"
+          echo "JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/.android" "$HOME/.config/godot"
           keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" || true
-          mkdir -p "$HOME/.config/godot"
           cat > "$HOME/.config/godot/editor_settings-4.5.tres" <<EOF
 [gd_resource type="EditorSettings" format=3]
 
 [resource]
 export/android/android_sdk_path = "$ANDROID_HOME"
-export/android/java_sdk_path = "$java_home"
+export/android/java_sdk_path = "$JAVA_HOME"
 export/android/debug_keystore = "$HOME/.android/debug.keystore"
 export/android/debug_keystore_user = "androiddebugkey"
 export/android/debug_keystore_pass = "android"
 EOF
-          cat "$HOME/.config/godot/editor_settings-4.5.tres"
 
-      - name: Build Android APK
-        shell: bash
+      - name: Export APK
         run: |
           set -eux
-          rm -rf build
           mkdir -p build
           godot --headless --verbose --export-debug "Android" build/FootballEmpireManager.apk
           test -s build/FootballEmpireManager.apk

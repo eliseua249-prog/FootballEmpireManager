@@ -11,7 +11,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
-
     container:
       image: barichello/godot-ci:4.5
 
@@ -19,12 +18,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup
+      - name: Setup Godot
         run: |
           mkdir -p ~/.local/share/godot/export_templates/
           mkdir -p ~/.config/
           mv /root/.config/godot ~/.config/godot
           mv /root/.local/share/godot/export_templates/${GODOT_VERSION}.stable ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+      - name: Install Android build tools
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.2"
 
       - name: Build Android APK
         run: |
